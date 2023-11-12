@@ -1,0 +1,6 @@
+.metaflow
+**/*.env
+*.env
+*.gz
+.ipynb_checkpoints
+*.pkl
