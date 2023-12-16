@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "fullstack-ml-f1-prediction"
+version = "0.1.0"
+description = ""
+authors = ["jaeyow <jaeyow@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+metaflow = "^2.10.8"
+comet-ml = "^3.35.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
