@@ -90,6 +90,46 @@ class F1PredictionFeaturePipeline(FlowSpec):
         ).df()
         print(results_store_df.head(5))
         
+        self.next(self.create_drivers_experience_table)
+
+    @step
+    def create_drivers_experience_table(self):
+        """
+        create_drivers_experience_table
+        """
+        import duckdb
+        import numpy as np
+        import pandas as pd
+
+        print("create_drivers_experience_table...")
+        con = duckdb.connect(database = "f1-race-data-2023.duckdb", read_only = False)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS driver_experience AS (
+                WITH RankedResults AS (
+                    SELECT
+                        driv.driverId,
+                        driv.surname,
+                        COUNT(*) OVER (PARTITION BY driv.driverId ORDER BY rac.date) AS race_count
+                    FROM
+                        main.results AS res
+                    INNER JOIN
+                        main.races AS rac ON res.raceId = rac.raceId 
+                    INNER JOIN
+                        main.drivers AS driv ON res.driverId = driv.driverId 
+                )
+                SELECT
+                    driverId,
+                    surname,
+                    MAX(race_count) AS total_races
+                FROM
+                    RankedResults
+                GROUP BY
+                    driverId, surname
+                ORDER BY total_races DESC
+            )
+            """
+        )
         self.next(self.create_driver_experience_feature)
 
     @step
@@ -109,19 +149,20 @@ class F1PredictionFeaturePipeline(FlowSpec):
             ADD COLUMN IF NOT EXISTS driverExperience INT DEFAULT 0;
 
             UPDATE results_store
-            SET driverExperience = subquery.cumulative_experience
+            SET driverExperience = subquery.total_races
             FROM (
-                SELECT 
-                    rs.driverId,
-                    r.raceId,
-                    CASE WHEN ROW_NUMBER() OVER (PARTITION BY rs.driverId ORDER BY r.date DESC) <= 60 THEN 1 ELSE 0 END AS cumulative_experience
-                FROM results_store AS rs
-                INNER JOIN races AS r ON rs.raceId = r.raceId
-            ) AS subquery
-            WHERE results_store.driverId = subquery.driverId AND results_store.raceId = subquery.raceId;
+                SELECT DISTINCT
+                    driv.driverId as drivId,
+                    driv_exp.total_races as total_races
+                FROM main.results AS res
+                INNER JOIN
+                    main.drivers AS driv ON res.driverId = driv.driverId
+                INNER JOIN 
+                    main.driver_experience as driv_exp ON res.driverId = driv_exp.driverId
+                ) AS subquery
+            WHERE main.results_store.driverId = subquery.drivId;
             """
         )
-
 
         results_store_df = con.execute("SELECT * FROM results_store;").df()
         self.results_store = results_store_df
@@ -142,6 +183,48 @@ class F1PredictionFeaturePipeline(FlowSpec):
         """
         )
 
+        self.next(self.create_constructor_experience_table)
+
+    @step
+    def create_constructor_experience_table(self):
+        """
+        create_constructor_experience_table
+        """
+        import duckdb
+        import numpy as np
+        import pandas as pd
+
+        print("create_constructor_experience_table...")
+        con = duckdb.connect(database = "f1-race-data-2023.duckdb", read_only = False)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS constructor_experience AS (
+                WITH RankedResults AS (
+                    SELECT
+                        cons.constructorId AS constructorId,
+                        cons.name AS name,
+                        COUNT(*) OVER (PARTITION BY cons.constructorId ORDER BY rac.date) AS race_count
+                    FROM
+                        main.results AS res
+                    INNER JOIN
+                        main.races AS rac ON res.raceId = rac.raceId
+                    INNER JOIN 
+                        main.constructor_experience as cons_exp ON res.constructorId = cons_exp.constructorId
+                    INNER JOIN
+                        main.constructors AS cons ON res.constructorId = cons.constructorId
+                )
+                SELECT
+                    constructorId,
+                    name,
+                    MAX(race_count) AS total_races
+                FROM
+                    RankedResults
+                GROUP BY
+                    constructorId, name
+                ORDER BY total_races DESC
+            )
+            """
+        )
         self.next(self.create_constructor_experience_feature)
 
     @step
@@ -161,16 +244,21 @@ class F1PredictionFeaturePipeline(FlowSpec):
             ADD COLUMN IF NOT EXISTS constructorExperience INT DEFAULT 0;
 
             UPDATE results_store
-            SET constructorExperience = subquery.cumulative_experience
+            SET constructorExperience = subquery.total_races
             FROM (
-                SELECT 
-                    rs.constructorId,
-                    r.raceId,
-                    CASE WHEN ROW_NUMBER() OVER (PARTITION BY rs.constructorId ORDER BY r.date DESC) <= 60 THEN 1 ELSE 0 END AS cumulative_experience
-                FROM results_store AS rs
-                INNER JOIN races AS r ON rs.raceId = r.raceId
+                SELECT DISTINCT
+                    cons.constructorId as constructorId,
+                    cons_exp.total_races as total_races
+                FROM
+                    main.results AS res
+                INNER JOIN
+                    main.races AS rac ON res.raceId = rac.raceId
+                INNER JOIN 
+                    main.constructor_experience as cons_exp ON res.constructorId = cons_exp.constructorId    
+                INNER JOIN
+                    main.constructors AS cons ON res.constructorId = cons.constructorId
             ) AS subquery
-            WHERE results_store.constructorId = subquery.constructorId AND results_store.raceId = subquery.raceId;
+            WHERE results_store.constructorId = subquery.constructorId;
             """
         )      
 
