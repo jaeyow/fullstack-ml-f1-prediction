@@ -116,7 +116,9 @@ class F1PredictionFeaturePipeline(FlowSpec):
                     INNER JOIN
                         main.races AS rac ON res.raceId = rac.raceId 
                     INNER JOIN
-                        main.drivers AS driv ON res.driverId = driv.driverId 
+                        main.drivers AS driv ON res.driverId = driv.driverId
+                    WHERE
+                        rac.date >= CURRENT_DATE - INTERVAL '5' YEAR    
                 )
                 SELECT
                     driverId,
@@ -208,10 +210,10 @@ class F1PredictionFeaturePipeline(FlowSpec):
                         main.results AS res
                     INNER JOIN
                         main.races AS rac ON res.raceId = rac.raceId
-                    INNER JOIN 
-                        main.constructor_experience as cons_exp ON res.constructorId = cons_exp.constructorId
                     INNER JOIN
                         main.constructors AS cons ON res.constructorId = cons.constructorId
+                    WHERE
+                        rac.date >= CURRENT_DATE - INTERVAL '5' YEAR
                 )
                 SELECT
                     constructorId,
